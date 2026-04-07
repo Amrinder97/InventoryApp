@@ -1,26 +1,58 @@
-import boto3
 import json
+import boto3
+import uuid
 import os
 
 def lambda_handler(event, context):
-    # Initialize DynamoDB client
-    dynamo_client = boto3.client('dynamodb')
+    # Parse incoming JSON data
+    try:
+        data = json.loads(event['body'])
+    except KeyError:
+        return {
+            'statusCode': 400,
+            'body': json.dumps("Bad request. Please provide the data.")
+        }
+    except Exception:
+        return {
+            'statusCode': 400,
+            'body': json.dumps("Invalid JSON format.")
+        }
 
     # Get table name from environment variable
     table_name = os.getenv('TABLE_NAME', 'Inventory')
 
-    # Scan the table
+    # DynamoDB setup
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(table_name)
+
+    # Generate a unique ID
+    item_id = str(uuid.uuid4())
+
+    # Insert data into DynamoDB
     try:
-        response = dynamo_client.scan(TableName=table_name)
-        items = response['Items']
+        table.put_item(
+            Item={
+                'item_id': item_id,
+                'location_id': int(data['location_id']),
+                'item_name': data['item_name'],
+                'item_description': data['item_description'],
+                'item_qty_on_hand': int(data['item_qty_on_hand']),
+                'item_price': float(data['item_price'])
+            }
+        )
 
         return {
             'statusCode': 200,
-            'body': json.dumps(items, default=str)
+            'body': json.dumps(f"Item with ID {item_id} added successfully.")
+        }
+
+    except KeyError as e:
+        return {
+            'statusCode': 400,
+            'body': json.dumps(f"Missing required field: {str(e)}")
         }
     except Exception as e:
-        print(e)
         return {
             'statusCode': 500,
-            'body': json.dumps(str(e))
+            'body': json.dumps(f"Error adding item: {str(e)}")
         }
