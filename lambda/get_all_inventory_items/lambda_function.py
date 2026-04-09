@@ -1,6 +1,7 @@
 import boto3
 import json
 import os
+from boto3.dynamodb.types import TypeDeserializer
 
 def lambda_handler(event, context):
     # Initialize DynamoDB client
@@ -9,10 +10,16 @@ def lambda_handler(event, context):
     # Get table name from environment variable
     table_name = os.getenv('TABLE_NAME', 'Inventory')
 
+    # Deserializer for DynamoDB types
+    deserializer = TypeDeserializer()
+
+    def deserialize_item(item):
+        return {key: deserializer.deserialize(value) for key, value in item.items()}
+
     # Scan the table
     try:
         response = dynamo_client.scan(TableName=table_name)
-        items = response['Items']
+        items = [deserialize_item(item) for item in response['Items']]
 
         return {
             'statusCode': 200,
